@@ -1,0 +1,76 @@
+From ebfba2cf93572f49c46bc2c04e756b62e973d320 Mon Sep 17 00:00:00 2001
+From: lajefahemp <lajefahemp@gmail.com>
+Date: Mon, 12 Oct 2026 23:16:51 +0000
+Subject: [PATCH] fix(landing): keep every performer fully on screen, ballerina
+ included
+
+The ballerina's back leg faded out under the shared bottom mask and her
+hands clipped at the top on shorter screens; the hoops player's shoes ran
+off the bottom; QB, pitcher and singer were cropped at the side edges on
+narrower viewports. Fit the ballerina inside the clear stage area, shrink
+side-cropped figures about their hand point, lift the hoops player, and
+keep the bottom fade only for photos cut off at the waist or shin.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01XNyStxRsLpZyTreHGgnoae
+---
+ src/customer/landing/landing.css       |  5 +++--
+ src/customer/landing/landing.script.ts | 16 ++++++++++++----
+ 2 files changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/src/customer/landing/landing.css b/src/customer/landing/landing.css
+index ae487f5..83ea76c 100644
+--- a/src/customer/landing/landing.css
++++ b/src/customer/landing/landing.css
+@@ -301,8 +301,9 @@
+ :where(.lp-host) .bigword .ol{color:transparent;-webkit-text-stroke:2px var(--stroke)}
+ :where(.lp-host) .bigword .fill{position:absolute;inset:0;color:var(--fillc);clip-path:inset(0 calc(100% - var(--fp,0%)) 0 0)}
+ :where(.lp-host) .bigword.pr .fill{clip-path:inset(0 0 0 calc(100% - var(--fp,0%)))}
+-:where(.lp-host) .athlete{position:absolute;z-index:2;will-change:transform;filter:contrast(1.06) saturate(.92) drop-shadow(0 0 28px color-mix(in srgb,var(--g1) 55%,transparent)) drop-shadow(0 30px 40px rgba(0,0,0,.35));transform-origin:var(--ox,50%) var(--oy,50%);
+-  -webkit-mask:linear-gradient(#000 82%,transparent 99%);mask:linear-gradient(#000 82%,transparent 99%)}
++:where(.lp-host) .athlete{position:absolute;z-index:2;will-change:transform;filter:contrast(1.06) saturate(.92) drop-shadow(0 0 28px color-mix(in srgb,var(--g1) 55%,transparent)) drop-shadow(0 30px 40px rgba(0,0,0,.35));transform-origin:var(--ox,50%) var(--oy,50%)}
++/* only the cut-off photos (waist or shin up) fade at the bottom; full-body performers keep their feet */
++:where(.lp-host) .scene:is([data-i="0"],[data-i="1"],[data-i="2"],[data-i="5"]) .athlete{-webkit-mask:linear-gradient(#000 82%,transparent 99%);mask:linear-gradient(#000 82%,transparent 99%)}
+ :where(.lp-host) .scene[data-i="4"] .athlete{-webkit-mask:linear-gradient(transparent,#000 9%,#000 82%,transparent 99%);mask:linear-gradient(transparent,#000 9%,#000 82%,transparent 99%)}
+ :where(.lp-host) .scene[data-i="7"] .athlete{filter:drop-shadow(0 24px 30px rgba(13,34,54,.3))}
+ :where(.lp-host) .scene[data-i="1"] .athlete{filter:drop-shadow(0 0 30px rgba(90,130,255,.55)) drop-shadow(0 30px 40px rgba(0,0,0,.35))}
+diff --git a/src/customer/landing/landing.script.ts b/src/customer/landing/landing.script.ts
+index 2640908..7131c66 100644
+--- a/src/customer/landing/landing.script.ts
++++ b/src/customer/landing/landing.script.ts
+@@ -845,20 +845,28 @@ export function mountLanding(ctx) {
+       } else {
+         const img = stage.querySelector('.athlete'); const [u, v] = s.anchor;
+         const ar = (img.naturalWidth / img.naturalHeight) || .8;
+-        const big = s.key === 'hockey' ? .9 : s.key === 'festival' ? .66 : s.key === 'theater' ? .68 : s.key === 'soccer' ? .9 : .95;
++        const big = s.key === 'hockey' ? .9 : s.key === 'festival' ? .66 : s.key === 'soccer' ? .9 : s.key === 'basketball' && !phone ? .78 : .95;
+         let h = H * (phone ? big * .5 : big);
+         let w = h * ar; const maxW = W * (phone ? .92 : .56); if (w > maxW){ w = maxW; h = w / ar; }
+         let top = phone ? H * .24 : H - h * .97;
+         if (s.key === 'hockey') top = H - h - H * (phone ? .3 : .08);
+         if (s.key === 'festival') top = H - h - H * (phone ? .3 : .02);
+-        if (s.key === 'basketball' && !phone) top = H * .12;
+-        if (s.key === 'theater') top = phone ? H * .26 : H * .04;   // keep her back foot clear of the info panel
+         if (s.key === 'soccer') top = phone ? H * .22 : H * .05;
+         hx = left ? W * (phone ? .8 : .42) : W * (phone ? .2 : .58);
+         if (s.key === 'hockey') hx = W * (phone ? .16 : .4);   // the stick blade: the player follows through to the right of it
+         if (s.key === 'festival') hx = W * (phone ? .12 : .5);
+-        if (s.key === 'theater') hx = W * (phone ? .5 : .3);
+         if (s.key === 'soccer') hx = W * (phone ? .5 : .27);
++        // keep the whole performer on screen side to side: shrink about the hand point rather than crop a head or a shoulder
++        const fitW = Math.min(u > 0 ? hx / u : Infinity, u < 1 ? (W - hx) / (1 - u) : Infinity);
++        if (s.key !== 'festival' && w > fitW){ const k = fitW / w; w *= k; h *= k; if (!phone && !['hockey','basketball','theater','soccer'].includes(s.key)) top = H - h * .97; }
++        if (s.key === 'basketball' && !phone) top = H * .07;   // his shoes land above the info panel
++        if (s.key === 'theater'){
++          // the ballerina is a full-body leap (hands at the top edge, back toe in the bottom-left corner): fit all of her in the
++          // clear area between the nav and the info panel
++          h = phone ? Math.min(W * .9 / ar, H * .42) : Math.min(H * .7, W * .5 / ar); w = h * ar;
++          top = phone ? H * .23 : Math.max(H * .08, 64);
++          hx = (phone ? (W - w) / 2 : W * .04) + u * w;
++        }
+         hy = top + v * h;
+         Object.assign(img.style, { width: w + 'px', height: h + 'px', left: (hx - u * w) + 'px', top: top + 'px' });
+         img.style.setProperty('--ox', (u*100) + '%'); img.style.setProperty('--oy', (v*100) + '%');
+-- 
+2.43.0
+
